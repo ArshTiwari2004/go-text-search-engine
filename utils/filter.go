@@ -7,7 +7,7 @@ import (
 
 // tokenize returns a slice of tokens for the given text.
 func tokenize(text string) []string {
-	return strings.FieldsFunc(text, func(r rune) bool {
+	return strings.FieldsFunc(text, func(r rune) bool { // rune is a type that represents a Unicode code point, and the FieldsFunc function is used to split the input text into tokens based on a custom function that determines the delimiters for tokenization
 		// Split on any character that is not a letter or a number.
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
 	})
