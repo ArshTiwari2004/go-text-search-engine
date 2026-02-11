@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	"https://github.com/ArshTiwari2004/go-text-search-engine/internal/api"
-	"https://github.com/ArshTiwari2004/go-text-search-engine/internal/engine"
-	"https://github.com/ArshTiwari2004/go-text-search-engine/internal/storage"
+	"gosearch/internal/api"
+	"gosearch/internal/engine"
+	"gosearch/internal/storage"
 )
 
 // Configuration flags for the application

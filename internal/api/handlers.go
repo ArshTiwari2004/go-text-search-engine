@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ArshTiwari2004/go-text-search-engine/internal/engine"
-	"github.com/ArshTiwari2004/go-text-search-engine/internal/storage"
+	"gosearch/internal/engine"
+	"gosearch/internal/storage"
+
 	"github.com/gin-gonic/gin"
 )
 
