@@ -2,22 +2,39 @@ package utils
 
 import (
 	"strings"
-	"unicode"
+
+	snowballeng "github.com/kljensen/snowball/english"
 )
 
-// tokenize returns a slice of tokens for the given text.
-func tokenize(text string) []string {
-	return strings.FieldsFunc(text, func(r rune) bool { // rune is a type that represents a Unicode code point, and the FieldsFunc function is used to split the input text into tokens based on a custom function that determines the delimiters for tokenization
-		// Split on any character that is not a letter or a number.
-		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-	})
+// lowercaseFilter returns a slice of tokens normalized to lower case.
+func lowercaseFilter(tokens []string) []string {
+	r := make([]string, len(tokens))
+	for i, token := range tokens {
+		r[i] = strings.ToLower(token) // convert each token to lowercase using the strings.ToLower function, which ensures that the search engine treats tokens in a case-insensitive manner, allowing for more flexible and user-friendly search results
+	}
+	return r
 }
 
-// analyze analyzes the text and returns a slice of tokens.
-func analyze(text string) []string {
-	tokens := tokenize(text)         // to call the tokenize function to split the input text into individual tokens based on non-letter and non-number characters as delimiters
-	tokens = lowercaseFilter(tokens) // to call the lowercaseFilter function to convert all tokens to lowercase, ensuring that the search is case-insensitive
-	tokens = stopwordFilter(tokens)  // to call the stopwordFilter function to remove common stop words from the list of tokens, which helps to improve search relevance by eliminating words that do not carry significant meaning
-	tokens = stemmerFilter(tokens)   // to call the stemmerFilter function to apply stemming to the tokens, which reduces words to their root form (e.g., "running" becomes "run"), allowing for more effective matching of related terms in the search engine
-	return tokens                    // to return the final list of processed tokens that can be used for indexing and searching in the full-text search engine
+// stopwordFilter returns a slice of tokens with stop words removed.
+func stopwordFilter(tokens []string) []string {
+	var stopwords = map[string]struct{}{
+		"a": {}, "and": {}, "be": {}, "have": {}, "i": {},
+		"in": {}, "of": {}, "that": {}, "the": {}, "to": {},
+	}
+	r := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		if _, ok := stopwords[token]; !ok {
+			r = append(r, token) // to check if the current token is not a stop word by looking it up in the stopwords map, and if it is not found (i.e., ok is false), the token is appended to the result slice r, effectively filtering out common stop words from the list of tokens that will be used for indexing and searching in the full-text search engine
+		}
+	}
+	return r
+}
+
+// stemmerFilter returns a slice of stemmed tokens.
+func stemmerFilter(tokens []string) []string {
+	r := make([]string, len(tokens))
+	for i, token := range tokens {
+		r[i] = snowballeng.Stem(token, false) // to apply stemming to each token using the snowballeng.Stem function from the kljensen/snowball package, which reduces words to their root form (e.g., "running" becomes "run"), allowing for more effective matching of related terms in the search engine and improving search relevance by treating different forms of a word as equivalent
+	}
+	return r
 }
