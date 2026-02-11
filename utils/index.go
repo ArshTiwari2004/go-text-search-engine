@@ -20,5 +20,44 @@ func (idx Index) Add(docs []document) {
 	}
 }
 
-// this file defines the Index type and its Add method, which is responsible for adding documents to the index by analyzing their text and associating tokens with document IDs.
-// This is a crucial part of building the inverted index for the full-text search engine.
+// intersection returns the set intersection between a and b.
+// a and b have to be sorted in ascending order and contain no duplicates.
+// kind of a merge step in merge sort, but instead of merging, we only keep the common elements.
+func Intersection(a []int, b []int) []int {
+	maxLen := len(a)
+	if len(b) > maxLen {
+		maxLen = len(b)
+	}
+	r := make([]int, 0, maxLen)
+	var i, j int
+	for i < len(a) && j < len(b) { // to iterate through both sorted slices a and b simultaneously, using two pointers (i and j) to track the current position in each slice, and comparing the elements at those positions to find common elements (the intersection) between the two slices
+		if a[i] < b[j] {
+			i++
+		} else if a[i] > b[j] {
+			j++
+		} else {
+			r = append(r, a[i])
+			i++
+			j++
+		}
+	}
+	return r
+}
+
+// search queries the Index for the given text.
+func (idx Index) Search(text string) []int {
+	var r []int
+	for _, token := range analyze(text) {
+		if ids, ok := idx[token]; ok { // to check if the current token from the search query exists in the index, and if it does, the associated list of document IDs is retrieved for further processing
+			if r == nil {
+				r = ids
+			} else {
+				r = Intersection(r, ids) // to compute the intersection of the current result set r with the list of document IDs associated with the current token, which ensures that only documents containing all tokens in the search query are returned as results
+			}
+		} else {
+			// Token doesn't exist.
+			return nil
+		}
+	}
+	return r
+}
