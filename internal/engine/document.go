@@ -1,117 +1,145 @@
 package engine
 
 import (
-	"compress/gzip"
+	"compress/bzip2"
 	"encoding/xml"
 	"fmt"
 	"gosearch/internal/analyzer"
+	"io"
 	"os"
+	"strings"
 	"time"
 )
 
+// ==========================
+// Core Data Structures
+// ==========================
+
 // Document represents a searchable document in the search engine.
-// It contains the content and metadata required for indexing and retrieval.
 type Document struct {
-	ID        int       `json:"id"`                  // Unique identifier assigned during indexing
-	Title     string    `json:"title" xml:"title"`   // Document title
-	URL       string    `json:"url" xml:"url"`       // Source URL (if applicable)
-	Text      string    `json:"text" xml:"abstract"` // Full text content for indexing
-	Timestamp time.Time `json:"timestamp"`           // When document was indexed
-	WordCount int       `json:"word_count"`          // Total words in document
-	TermCount int       `json:"term_count"`          // Unique terms after analysis
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	URL       string    `json:"url"`
+	Text      string    `json:"text"`
+	Timestamp time.Time `json:"timestamp"`
+	WordCount int       `json:"word_count"`
+	TermCount int       `json:"term_count"`
 }
 
-// SearchResult represents a single result from a search query.
-// It includes the document, relevance score, and highlighted snippets.
+// SearchResult represents a ranked search result.
 type SearchResult struct {
-	Document Document `json:"document"` // The matched document
-	Score    float64  `json:"score"`    // Relevance score (TF-IDF)
-	Snippets []string `json:"snippets"` // Text snippets showing query terms in context
-	Rank     int      `json:"rank"`     // Position in result list (1-indexed)
+	Document Document `json:"document"`
+	Score    float64  `json:"score"`
+	Snippets []string `json:"snippets"`
+	Rank     int      `json:"rank"`
 }
 
-// LoadDocuments loads documents from a Wikipedia abstract dump file.
-// The dump is a compressed XML file containing Wikipedia abstracts.
+// ==========================
+// Internal Wiki XML Struct
+// ==========================
+
+type wikiPage struct {
+	Title    string `xml:"title"`
+	Revision struct {
+		Text string `xml:"text"`
+	} `xml:"revision"`
+}
+
+// ==========================
+// Streaming Wikipedia Loader
+// ==========================
+
+// LoadDocuments loads Wikipedia pages using streaming XML parsing.
+// It supports .bz2 dumps (real Wikipedia format).
 //
-// File format: gzip-compressed XML with structure:
-// <feed>
+// IMPORTANT:
+// Use simplewiki dump for testing:
+// simplewiki-latest-pages-articles.xml.bz2
 //
-//	<doc>
-//	  <title>Article Title</title>
-//	  <url>https://...</url>
-//	  <abstract>Article text...</abstract>
-//	</doc>
-//	...
-//
-// </feed>
-//
-// This function demonstrates:
-// - File I/O operations
-// - Compression handling (gzip)
-// - XML parsing
-// - Memory-efficient processing of large datasets
-func LoadDocuments(path string) ([]Document, error) {
-	// Open the compressed dump file
-	f, err := os.Open(path)
+// The limit parameter prevents loading entire Wikipedia.
+func LoadDocuments(path string, limit int) ([]Document, error) {
+
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer f.Close()
+	defer file.Close()
 
-	// Create a gzip reader to decompress the file on-the-fly
-	// This is memory-efficient as it streams decompression
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gz.Close()
+	// Wikipedia dumps are .bz2 compressed
+	reader := bzip2.NewReader(file)
+	decoder := xml.NewDecoder(reader)
 
-	// Create an XML decoder that reads from the gzip stream
-	dec := xml.NewDecoder(gz)
-
-	// Define the XML structure to unmarshal into
-	// This anonymous struct matches the Wikipedia dump format
-	dump := struct {
-		Documents []Document `xml:"doc"`
-	}{}
-
-	// Decode the entire XML structure into memory
-	// For very large files (>1GB decompressed), consider streaming XML parsing
-	if err := dec.Decode(&dump); err != nil {
-		return nil, fmt.Errorf("failed to decode XML: %w", err)
-	}
-
-	docs := dump.Documents
+	var documents []Document
+	docID := 0
 	timestamp := time.Now()
 
-	// Process each document to calculate statistics
-	for i := range docs {
-		docs[i].ID = i
-		docs[i].Timestamp = timestamp
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("XML parsing error: %w", err)
+		}
 
-		// Calculate word count for TF-IDF normalization
-		tokens := analyzer.Analyze(docs[i].Text)
-		docs[i].TermCount = len(tokens)
+		// Detect <page> elements
+		switch start := token.(type) {
+		case xml.StartElement:
+			if start.Name.Local == "page" {
 
-		// Approximate word count (more accurate than term count due to stopword removal)
-		docs[i].WordCount = len(analyzer.Tokenize(docs[i].Text))
+				var page wikiPage
+				if err := decoder.DecodeElement(&page, &start); err != nil {
+					return nil, err
+				}
+
+				text := strings.TrimSpace(page.Revision.Text)
+				if text == "" {
+					continue
+				}
+
+				// Analyze text
+				tokens := analyzer.Analyze(text)
+
+				doc := Document{
+					ID:        docID,
+					Title:     page.Title,
+					URL:       "https://en.wikipedia.org/wiki/" + strings.ReplaceAll(page.Title, " ", "_"),
+					Text:      text,
+					Timestamp: timestamp,
+					WordCount: len(analyzer.Tokenize(text)),
+					TermCount: len(tokens),
+				}
+
+				documents = append(documents, doc)
+				docID++
+
+				// Stop early if limit reached
+				if limit > 0 && docID >= limit {
+					return documents, nil
+				}
+			}
+		}
 	}
 
-	return docs, nil
+	return documents, nil
 }
 
-// ValidateDocument checks if a document has the minimum required fields
+// ==========================
+// Utility Methods
+// ==========================
+
+// ValidateDocument ensures required fields exist.
 func (d *Document) ValidateDocument() error {
-	if d.Text == "" {
+	if strings.TrimSpace(d.Text) == "" {
 		return fmt.Errorf("document text cannot be empty")
 	}
-	if d.Title == "" {
+	if strings.TrimSpace(d.Title) == "" {
 		return fmt.Errorf("document title cannot be empty")
 	}
 	return nil
 }
 
-// GetPreview returns a preview of the document text (first N characters)
+// GetPreview returns the first N characters of text.
 func (d *Document) GetPreview(maxLength int) string {
 	if len(d.Text) <= maxLength {
 		return d.Text

@@ -10,24 +10,25 @@ import (
 	"gosearch/internal/storage"
 )
 
-// Configuration flags for the application
+// configuration flags for the application, allowing users to specify the path to the Wikipedia dump file, the directory for index persistence, the HTTP server port, and whether to force rebuild the index from the dump file, providing flexibility in how the application is run and how it manages its data.
 var (
 	dumpPath string
 	dataDir  string
 	port     string
 	rebuild  bool
+	limit    int = 1000 // Limit number of documents to load for testing
 )
 
 func init() {
 	// Define command-line flags
-	flag.StringVar(&dumpPath, "dump", "enwiki-latest-stub-articles.xml.gz",
+	flag.StringVar(&dumpPath, "dump", "simplewiki-latest-pages-articles.xml.bz2",
 		"Path to Wikipedia dump file")
 	flag.StringVar(&dataDir, "data", "./data",
 		"Directory for index persistence")
 	flag.StringVar(&port, "port", "8080",
 		"HTTP server port")
 	flag.BoolVar(&rebuild, "rebuild", false,
-		"Force rebuild index from dump (ignores persisted index)")
+		"Force rebuild index from dump (ignore persisted index)")
 }
 
 func main() {
@@ -107,7 +108,7 @@ func buildIndexFromDump(eng *engine.Engine, path string) error {
 	start := time.Now()
 
 	log.Printf("Loading documents from: %s", path)
-	docs, err := engine.LoadDocuments(path)
+	docs, err := engine.LoadDocuments(path, limit)
 	if err != nil {
 		return err
 	}
