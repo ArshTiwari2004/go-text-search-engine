@@ -83,7 +83,7 @@ function App() {
     <div className="App">
       <header className="App-header">
         <div className="container">
-          <h1>🔍 GoSearch</h1>
+          <h1>GoSearch</h1>
           <p className="subtitle">Fast, relevant, full-text search engine</p>
           
           {stats && (
@@ -174,11 +174,11 @@ function App() {
 
       <footer className="footer">
         <div className="container">
-          <p>
+          {/* <p>
             Built with ❤️ using Go, React, and TF-IDF ranking
-          </p>
+          </p> */}
           <p>
-            <a href="https://github.com/ArshTiwari2004/gosearch" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/ArshTiwari2004/go-text-search-engine" target="_blank" rel="noopener noreferrer">
               View on GitHub
             </a>
           </p>
