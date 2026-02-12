@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"encoding/xml"
 	"fmt"
+	"gosearch/internal/analyzer"
 	"os"
 	"time"
 )
@@ -89,11 +90,11 @@ func LoadDocuments(path string) ([]Document, error) {
 		docs[i].Timestamp = timestamp
 
 		// Calculate word count for TF-IDF normalization
-		tokens := Analyze(docs[i].Text)
+		tokens := analyzer.Analyze(docs[i].Text)
 		docs[i].TermCount = len(tokens)
 
 		// Approximate word count (more accurate than term count due to stopword removal)
-		docs[i].WordCount = len(Tokenize(docs[i].Text))
+		docs[i].WordCount = len(analyzer.Tokenize(docs[i].Text))
 	}
 
 	return docs, nil

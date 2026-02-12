@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"gosearch/internal/analyzer"
 	"sort"
 	"sync"
 )
@@ -56,7 +57,7 @@ func NewIndex() *Index {
 // Thread-safety: This method uses a write lock to ensure safe concurrent access
 func (idx *Index) AddDocument(doc Document) {
 	// Analyze document text to get normalized terms
-	terms := Analyze(doc.Text)
+	terms := analyzer.Analyze(doc.Text)
 
 	// Count term frequencies in this document
 	// This is essential for TF-IDF calculation
@@ -113,7 +114,7 @@ func (idx *Index) Search(text string) []int {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
 
-	queryTerms := Analyze(text)
+	queryTerms := analyzer.Analyze(text)
 	if len(queryTerms) == 0 {
 		return nil
 	}

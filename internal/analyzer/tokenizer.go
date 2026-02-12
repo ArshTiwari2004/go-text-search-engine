@@ -1,4 +1,4 @@
-package engine
+package analyzer
 
 import (
 	"strings"

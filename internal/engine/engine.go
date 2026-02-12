@@ -1,8 +1,8 @@
 package engine
-package engine
 
 import (
 	"fmt"
+	"gosearch/internal/analyzer"
 	"math"
 	"runtime"
 	"sort"
@@ -13,31 +13,31 @@ import (
 // Engine is the core search engine that manages indexing and retrieval operations.
 // It provides thread-safe operations for building and querying an inverted index.
 type Engine struct {
-	index     *Index          // The inverted index mapping terms to postings
-	documents []Document      // In-memory document store for quick retrieval
-	stats     *EngineStats    // Performance and usage statistics
-	mu        sync.RWMutex    // Read-Write mutex for thread-safe operations
-	config    *EngineConfig   // Configuration parameters for the engine
+	index     *Index        // The inverted index mapping terms to postings
+	documents []Document    // In-memory document store for quick retrieval
+	stats     *EngineStats  // Performance and usage statistics
+	mu        sync.RWMutex  // Read-Write mutex for thread-safe operations
+	config    *EngineConfig // Configuration parameters for the engine
 }
 
 // EngineConfig holds configuration parameters for the search engine
 type EngineConfig struct {
-	MaxResults      int     // Maximum number of results to return per query
-	MinScore        float64 // Minimum relevance score threshold
-	EnableCaching   bool    // Enable query result caching
-	WorkerPoolSize  int     // Number of concurrent workers for indexing
+	MaxResults     int     // Maximum number of results to return per query
+	MinScore       float64 // Minimum relevance score threshold
+	EnableCaching  bool    // Enable query result caching
+	WorkerPoolSize int     // Number of concurrent workers for indexing
 }
 
 // EngineStats tracks performance metrics and usage statistics
 type EngineStats struct {
-	TotalDocuments     int           // Total number of indexed documents
-	TotalTerms         int           // Total unique terms in the index
-	IndexSize          int64         // Memory size of the index in bytes
-	TotalQueries       int64         // Total number of queries processed
-	AverageQueryTime   time.Duration // Average time to process a query
-	LastIndexTime      time.Duration // Time taken for last indexing operation
-	MemoryUsage        uint64        // Current memory usage in bytes
-	mu                 sync.RWMutex  // Mutex for thread-safe stats updates
+	TotalDocuments   int           // Total number of indexed documents
+	TotalTerms       int           // Total unique terms in the index
+	IndexSize        int64         // Memory size of the index in bytes
+	TotalQueries     int64         // Total number of queries processed
+	AverageQueryTime time.Duration // Average time to process a query
+	LastIndexTime    time.Duration // Time taken for last indexing operation
+	MemoryUsage      uint64        // Current memory usage in bytes
+	mu               sync.RWMutex  // Mutex for thread-safe stats updates
 }
 
 // NewEngine creates a new search engine instance with default configuration
@@ -64,7 +64,7 @@ func NewEngineWithConfig(config *EngineConfig) *Engine {
 // This method uses concurrent processing for better performance on large datasets.
 // It implements a worker pool pattern to parallelize the indexing process.
 func (e *Engine) IndexDocuments(docs []Document) error {
-	e.mu.Lock() // to acquire a write lock on the engine's mutex to ensure that the indexing operation is thread-safe and that no other operations can modify the engine's state while documents are being indexed
+	e.mu.Lock()         // to acquire a write lock on the engine's mutex to ensure that the indexing operation is thread-safe and that no other operations can modify the engine's state while documents are being indexed
 	defer e.mu.Unlock() // to release the lock after the indexing operation is complete, allowing other operations to proceed
 
 	start := time.Now()
@@ -123,7 +123,7 @@ func (e *Engine) Search(query string, maxResults int) ([]SearchResult, error) {
 	start := time.Now()
 
 	// Analyze the query text (tokenization, lowercasing, stopword removal, stemming)
-	queryTerms := Analyze(query)
+	queryTerms := analyzer.Analyze(query) // to process the input query string and extract meaningful terms by performing tokenization, normalization (such as lowercasing), stopword removal, and stemming, which helps improve the relevance of search results by focusing on the core terms in the query and ignoring common words that do not contribute to the search intent
 	if len(queryTerms) == 0 {
 		return []SearchResult{}, nil
 	}
@@ -201,7 +201,7 @@ func (e *Engine) calculateTFIDF(queryTerms []string) map[int]float64 {
 		for _, posting := range postings {
 			// TF (Term Frequency) - normalized by document length
 			tf := float64(posting.TermFrequency) / float64(posting.DocLength)
-			
+
 			// Accumulate TF-IDF score for this document
 			// Multiple query terms contribute additively to the score
 			scores[posting.DocID] += tf * idf
@@ -219,7 +219,7 @@ func (e *Engine) generateSnippets(doc Document, queryTerms []string) []string {
 	maxSnippetLength := 150
 
 	// Find positions of query terms in the document
-	for _, term := range queryTerms {
+	for range queryTerms {
 		// Simple snippet generation - can be enhanced with better context extraction
 		if len(text) <= maxSnippetLength {
 			snippets = append(snippets, text)
@@ -252,7 +252,7 @@ func (e *Engine) GetStats() EngineStats {
 
 	// Update memory usage before returning stats
 	e.updateMemoryUsage()
-	
+
 	return *e.stats
 }
 
@@ -262,7 +262,7 @@ func (e *Engine) updateMemoryUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	e.stats.MemoryUsage = m.Alloc // Currently allocated memory in bytes
-	
+
 	// Estimate index size (rough approximation)
 	e.stats.IndexSize = int64(len(e.index.Terms) * 100) // Simplified calculation
 }

@@ -50,7 +50,7 @@ func main() {
 		log.Println("Loading persisted index...")
 		start := time.Now()
 
-		idx, docs, stats, err := pm.LoadIndex()
+		_, docs, stats, err := pm.LoadIndex()
 		if err != nil {
 			log.Printf("Failed to load index: %v", err)
 			log.Println("Building new index from dump...")
