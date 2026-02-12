@@ -11,10 +11,7 @@ import (
 	"time"
 )
 
-// ==========================
 // Core Data Structures
-// ==========================
-
 // Document represents a searchable document in the search engine.
 type Document struct {
 	ID        int       `json:"id"`
@@ -34,9 +31,7 @@ type SearchResult struct {
 	Rank     int      `json:"rank"`
 }
 
-// ==========================
 // Internal Wiki XML Struct
-// ==========================
 
 type wikiPage struct {
 	Title    string `xml:"title"`
@@ -45,10 +40,7 @@ type wikiPage struct {
 	} `xml:"revision"`
 }
 
-// ==========================
 // Streaming Wikipedia Loader
-// ==========================
-
 // LoadDocuments loads Wikipedia pages using streaming XML parsing.
 // It supports .bz2 dumps (real Wikipedia format).
 //
@@ -124,10 +116,7 @@ func LoadDocuments(path string, limit int) ([]Document, error) {
 	return documents, nil
 }
 
-// ==========================
 // Utility Methods
-// ==========================
-
 // ValidateDocument ensures required fields exist.
 func (d *Document) ValidateDocument() error {
 	if strings.TrimSpace(d.Text) == "" {
