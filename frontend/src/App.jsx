@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import './App.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
-
 
 function App() {
   const [query, setQuery] = useState('');
@@ -12,7 +10,6 @@ function App() {
   const [stats, setStats] = useState(null);
   const [searchTime, setSearchTime] = useState(null);
 
-  // Load engine stats on mount
   useEffect(() => {
     fetchStats();
   }, []);
@@ -29,10 +26,7 @@ function App() {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    
-    if (!query.trim()) {
-      return;
-    }
+    if (!query.trim()) return;
 
     setLoading(true);
     setError(null);
@@ -40,17 +34,12 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/search`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: query,
-          max_results: 20,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query, max_results: 20 }),
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         setResults(data.results || []);
         setSearchTime(data.time_taken);
@@ -67,27 +56,31 @@ function App() {
 
   const highlightText = (text, query) => {
     if (!query) return text;
-    
+
     const terms = query.toLowerCase().split(' ');
     let highlighted = text;
-    
+
     terms.forEach(term => {
       const regex = new RegExp(`(${term})`, 'gi');
       highlighted = highlighted.replace(regex, '<mark>$1</mark>');
     });
-    
+
     return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <div className="container">
-          <h1>GoSearch</h1>
-          <p className="subtitle">Fast, relevant, full-text search engine</p>
-          
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+
+      {/* Header */}
+      <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white py-16 px-4 shadow-lg">
+        <div className="max-w-6xl mx-auto text-center">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">GoSearch</h1>
+          <p className="mt-4 text-lg opacity-90">
+            Fast, relevant, full-text search engine
+          </p>
+
           {stats && (
-            <div className="stats-bar">
+            <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm md:text-base opacity-90">
               <span>{stats.total_documents?.toLocaleString()} documents</span>
               <span>•</span>
               <span>{stats.total_terms?.toLocaleString()} terms</span>
@@ -100,89 +93,121 @@ function App() {
         </div>
       </header>
 
-      <main className="container">
-        <form onSubmit={handleSearch} className="search-box">
+      {/* Main */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 -mt-10">
+
+        {/* Search Box */}
+        <form
+          onSubmit={handleSearch}
+          className="bg-white shadow-2xl rounded-2xl p-3 md:p-4 flex flex-col md:flex-row gap-3"
+        >
           <input
             type="text"
             placeholder="Search for anything... (e.g., 'machine learning', 'climate change')"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="search-input"
+            className="flex-1 px-5 py-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-base"
             autoFocus
           />
-          <button type="submit" className="search-button" disabled={loading}>
+          <button
+            type="submit"
+            disabled={loading}
+            className={`px-8 py-4 rounded-xl font-semibold text-white transition-all duration-300 
+              ${loading 
+                ? 'bg-indigo-400 animate-pulse cursor-not-allowed' 
+                : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer'
+              }`}
+          >
             {loading ? 'Searching...' : 'Search'}
           </button>
         </form>
 
+        {/* Error */}
         {error && (
-          <div className="error-message">
+          <div className="mt-6 bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl text-center">
             ⚠️ {error}
           </div>
         )}
 
+        {/* Results Info */}
         {searchTime && results.length > 0 && (
-          <div className="results-info">
-            Found <strong>{results.length}</strong> results in <strong>{searchTime}</strong>
+          <div className="mt-6 text-slate-600">
+            Found <strong>{results.length}</strong> results in{' '}
+            <strong>{searchTime}</strong>
           </div>
         )}
 
-        <div className="results-container">
-          {results.map((result, index) => (
-            <div key={result.document.id} className="result-card">
-              <div className="result-rank">#{result.rank}</div>
-              <div className="result-content">
-                <h3 className="result-title">
-                  {highlightText(result.document.title, query)}
-                </h3>
-                <p className="result-snippet">
-                  {highlightText(
-                    result.snippets && result.snippets[0] 
-                      ? result.snippets[0] 
-                      : result.document.text.substring(0, 200) + '...',
-                    query
-                  )}
-                </p>
-                <div className="result-meta">
-                  <span className="score">Score: {result.score.toFixed(3)}</span>
-                  {result.document.url && (
-                    <>
-                      <span>•</span>
-                      <a 
-                        href={result.document.url} 
-                        target="_blank" 
+        {/* Results */}
+        <div className="mt-8 space-y-6 pb-16">
+          {results.map((result) => (
+            <div
+              key={result.document.id}
+              className="bg-white border border-slate-200 rounded-1xl p-6 "
+            >
+              <div className="flex flex-col md:flex-row md:items-start gap-4">
+
+                <div className="text-indigo-600 font-bold text-lg md:text-xl min-w-[50px]">
+                  #{result.rank}
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-xl md:text-2xl font-semibold mb-2">
+                    {highlightText(result.document.title, query)}
+                  </h3>
+
+                  <p className="text-slate-600 leading-relaxed mb-4">
+                    {highlightText(
+                      result.snippets && result.snippets[0]
+                        ? result.snippets[0]
+                        : result.document.text.substring(0, 200) + '...',
+                      query
+                    )}
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                    <span className="bg-slate-100 px-3 py-1 rounded-full font-medium">
+                      Score: {result.score.toFixed(3)}
+                    </span>
+
+                    {result.document.url && (
+                      <a
+                        href={result.document.url}
+                        target="_blank"
                         rel="noopener noreferrer"
-                        className="result-link"
+                        className="text-indigo-600 font-medium hover:underline"
                       >
                         View Source →
                       </a>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </div>
+
               </div>
             </div>
           ))}
         </div>
 
+        {/* No Results */}
         {!loading && !error && results.length === 0 && query && (
-          <div className="no-results">
-            <p>No results found for "<strong>{query}</strong>"</p>
-            <p>Try different keywords or check your spelling</p>
+          <div className="text-center mt-16 text-slate-500">
+            <p className="text-lg">
+              No results found for "<strong>{query}</strong>"
+            </p>
+            <p className="mt-2">Try different keywords or check your spelling</p>
           </div>
         )}
       </main>
 
-      <footer className="footer">
-        <div className="container">
-          {/* <p>
-            Built with ❤️ using Go, React, and TF-IDF ranking
-          </p> */}
-          <p>
-            <a href="https://github.com/ArshTiwari2004/go-text-search-engine" target="_blank" rel="noopener noreferrer">
-              View on GitHub
-            </a>
-          </p>
-        </div>
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 py-8 text-center text-slate-500">
+        <a
+          href="https://github.com/ArshTiwari2004/go-text-search-engine"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-600 font-medium hover:underline"
+        >
+          View on GitHub
+        </a>
       </footer>
     </div>
   );

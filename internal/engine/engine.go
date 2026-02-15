@@ -219,7 +219,7 @@ func (e *Engine) generateSnippets(doc Document, queryTerms []string) []string {
 	maxSnippetLength := 150
 
 	// Find positions of query terms in the document
-	for range queryTerms {
+	for range queryTerms { // here term was used before but it was not used in the loop, so I replaced it with an underscore to indicate that it's intentionally ignored
 		// Simple snippet generation - can be enhanced with better context extraction
 		if len(text) <= maxSnippetLength {
 			snippets = append(snippets, text)
