@@ -339,4 +339,34 @@ graph TD
     style M fill:#ffccbc
     style Q fill:#c8e6c9
 ```
+## Concurrent Indexing Flow
+
+Concurrent indexing uses a worker pool pattern where N workers (based on CPU cores) process documents in parallel, build local indices without locks, then merge at the end for a 1.9x speedup.
+
+```go
+// Create worker pool
+workers := runtime.NumCPU()
+docsChan := make(chan Document, workers)
+
+// Start workers
+for i := 0; i < workers; i++ {
+    go func() {
+        for doc := range docsChan {
+            index.AddDocument(doc)  // Process in parallel
+        }
+    }()
+}
+
+// Send work
+for _, doc := range documents {
+    docsChan <- doc
+}
+```
+
+<img src="./gosearchindexing.png" alt="GoSearch Indexing" width="600"/>
+
+
+---
+
+Thanks for reading till here! I’ll continue updating this README with more technical details and deployment steps soon.
 
