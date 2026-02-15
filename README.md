@@ -197,5 +197,146 @@ graph TB
 
 While performing testing with `simplewiki-latest-pages-articles.xml.bz2` dump file, the search engine had 1,000 documents( limit set intentionally ) indexed with 52,366 unique terms, when searching for "go programming", the frontend sends a POST request to `/api/v1/search`, and the Go backend performs TF-IDF ranking to return the top results. The query returned 20 results in 1.777208 ms (~1.7 ms), demonstrating very fast processing and low-latency performance.
 
+## API Documentation
 
+### Base URL
+```
+http://localhost:8080/api/v1
+```
+
+### Endpoints
+
+#### 1. Search (POST)
+**Endpoint:** `POST /api/v1/search`
+
+**Request:**
+```json
+{
+  "query": "golang concurrency patterns",
+  "max_results": 10,
+  "min_score": 0.5
+}
+```
+
+**Response:**
+```json
+{
+  "query": "golang concurrency patterns",
+  "results": [
+    {
+      "document": {
+        "id": 12345,
+        "title": "Go Concurrency Patterns",
+        "url": "https://...",
+        "text": "...",
+        "word_count": 500
+      },
+      "score": 8.45,
+      "snippets": ["...concurrency patterns in Go..."],
+      "rank": 1
+    }
+  ],
+  "total_results": 15,
+  "time_taken": "23.5ms",
+  "success": true
+}
+```
+
+#### 2. Search (GET)
+**Endpoint:** `GET /api/v1/search?q=golang&limit=10`
+
+**Response:** Same as POST
+
+#### 3. Get Document
+**Endpoint:** `GET /api/v1/document/:id`
+
+**Response:**
+```json
+{
+  "document": {
+    "id": 12345,
+    "title": "Document Title",
+    "text": "Full document text...",
+    "url": "https://..."
+  },
+  "success": true
+}
+```
+
+#### 4. Statistics
+**Endpoint:** `GET /api/v1/stats`
+
+**Response:**
+```json
+{
+  "total_documents": 600000,
+  "total_terms": 2500000,
+  "total_queries": 15234,
+  "average_query_time": "45.2ms",
+  "memory_usage_mb": 450.3,
+  "index_size_kb": 102400,
+  "uptime": "5h23m"
+}
+```
+
+#### 5. Health Check
+**Endpoint:** `GET /health`
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "documents": 600000,
+  "terms": 2500000,
+  "queries": 15234,
+  "timestamp": 1640000000
+}
+```
+
+## Concurrent Indexing Flow
+
+```mermaid
+graph TD
+    A[Main GoroutineLoad 600k Docs] --> B{Create Worker PoolN = CPU Cores}
+    
+    B --> C[Create Doc ChannelBuffered Size N]
+    
+    C --> D[Spawn Worker 1]
+    C --> E[Spawn Worker 2]
+    C --> F[Spawn Worker N]
+    
+    A --> G[Send Docs to Channel]
+    
+    G --> H{Doc Channel}
+    
+    H --> I1[Worker 1 Receives]
+    H --> I2[Worker 2 Receives]
+    H --> I3[Worker N Receives]
+    
+    I1 --> J1[Analyze DocumentNo Lock]
+    I2 --> J2[Analyze DocumentNo Lock]
+    I3 --> J3[Analyze DocumentNo Lock]
+    
+    J1 --> K1[Build Local IndexNo Lock]
+    J2 --> K2[Build Local IndexNo Lock]
+    J3 --> K3[Build Local IndexNo Lock]
+    
+    K1 & K2 & K3 --> L[Wait Group Done]
+    
+    L --> M{Merge PhaseSynchronized}
+    
+    M --> N[Acquire Mutex Lock]
+    N --> O[Merge Local Indices]
+    O --> P[Release Mutex Lock]
+    
+    P --> Q[Global Index Ready]
+    
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style J1 fill:#e8f5e9
+    style J2 fill:#e8f5e9
+    style J3 fill:#e8f5e9
+    style M fill:#ffccbc
+    style Q fill:#c8e6c9
+```
 
