@@ -1,9 +1,15 @@
 <div align="center">
-  
-# GOSEARCH
+
+<img src="gosearchlogo.png" alt="GOSEARCH Logo" width="400"/>
+
+<br/>
+<br/>
+
+
 ![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 ![GitHub release](https://img.shields.io/github/v/release/ArshTiwari2004/go-text-search-engine?style=for-the-badge)
+![Build Status](https://img.shields.io/github/actions/workflow/status/ArshTiwari2004/go-text-search-engine/go.yml?style=for-the-badge)
 
 
 </div>
