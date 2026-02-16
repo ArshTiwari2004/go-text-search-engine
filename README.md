@@ -205,6 +205,81 @@ Options:
 - [x] **Error Handling** - Proper error propagation
 - [x] **Type Safety** - Strongly typed throughout
 
+
+## Multi-Language Support
+
+GoSearch is built in Go, but it is not limited to Go applications..
+Because GoSearch exposes a RESTful HTTP API with JSON responses, it can be used from any programming language that supports HTTP requests.
+
+This makes GoSearch fully language agnostic, similar to how Elasticsearch works internally.
+
+GoSearch runs as an HTTP server:
+
+```go
+GoSearch Engine (Go)
+↓
+Gin HTTP Server
+↓
+REST API (JSON)
+```
+
+Any language capable of sending HTTP requests can integrate with it.
+
+#### Python example
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8080/api/v1/search",
+    json={
+        "query": "golang concurrency",
+        "max_results": 5
+    }
+)
+
+print(response.json())
+```
+
+#### NodeJS example
+```go
+const axios = require("axios");
+
+async function search() {
+  const response = await axios.post(
+    "http://localhost:8080/api/v1/search",
+    {
+      query: "golang concurrency",
+      max_results: 5
+    }
+  );
+
+  console.log(response.data);
+}
+
+search();
+```
+#### Java example
+```go
+// Using Java 11+ HttpClient
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create("http://localhost:8080/api/v1/search"))
+    .header("Content-Type", "application/json")
+    .POST(HttpRequest.BodyPublishers.ofString(
+        "{\"query\":\"golang\",\"max_results\":5}"
+    ))
+    .build();
+```
+
+In the future, official client SDKs may be provided for:
+gosearch-go,
+gosearch-py,
+gosearch-js.
+
+These SDKs would simply wrap the REST API to provide a cleaner developer experience.
+
+
+
+
 ## High-Level System Architecture
 - will update this
 
