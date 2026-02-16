@@ -52,6 +52,18 @@ go build -o gosearch ./cmd/api
 ./gosearch -dump enwiki-latest-abstract1.xml.gz -port 8080
 ```
 
+Setup the frontend, this is optional
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm start
+
+# Frontend will open at http://localhost:5173
+```
 
 ## Usage
 
@@ -105,6 +117,54 @@ Modern applications require search functionality, but existing solutions have li
 | **Algolia** | Vendor lock-in, expensive at scale ($2K+/month) |
 | **Built-in SQL LIKE** | Doesn't scale beyond 100K records, no relevance ranking |
 | **strings.Contains()** | O(n) per search, no ranking, impractical for large datasets |
+
+
+
+
+
+## Configuration Options
+
+These are the configuration options provided in the code in the main.go file. Will increase these by time.
+
+These are the command-Line flags used :
+
+```bash
+./gosearch [options]
+
+Options:
+  -dump string
+        Path to Wikipedia XML dump file
+        (default "enwiki-latest-stub-articles.xml.gz")
+  
+  -data string
+        Directory for index persistence
+        (default "./data")
+  
+  -port string
+        HTTP server port
+        (default "8080")
+  
+  -rebuild
+        Force rebuild index from dump (ignores persisted index)
+        (default false)
+```
+
+### Examples
+
+```bash
+# Use custom dump file
+./gosearch -dump my-documents.xml.gz
+
+# Use different port
+./gosearch -port 3000
+
+# Force rebuild (useful after code changes)
+./gosearch -rebuild
+
+# All options combined
+./gosearch -dump data.xml.gz -port 9000 -data /var/lib/gosearch -rebuild
+```
+
 
 
 ## Features available in Gosearch:
@@ -293,55 +353,19 @@ http://localhost:8080/api/v1
 }
 ```
 
-## Concurrent Indexing Flow
 
-```mermaid
-graph TD
-    A[Main GoroutineLoad 600k Docs] --> B{Create Worker PoolN = CPU Cores}
-    
-    B --> C[Create Doc ChannelBuffered Size N]
-    
-    C --> D[Spawn Worker 1]
-    C --> E[Spawn Worker 2]
-    C --> F[Spawn Worker N]
-    
-    A --> G[Send Docs to Channel]
-    
-    G --> H{Doc Channel}
-    
-    H --> I1[Worker 1 Receives]
-    H --> I2[Worker 2 Receives]
-    H --> I3[Worker N Receives]
-    
-    I1 --> J1[Analyze DocumentNo Lock]
-    I2 --> J2[Analyze DocumentNo Lock]
-    I3 --> J3[Analyze DocumentNo Lock]
-    
-    J1 --> K1[Build Local IndexNo Lock]
-    J2 --> K2[Build Local IndexNo Lock]
-    J3 --> K3[Build Local IndexNo Lock]
-    
-    K1 & K2 & K3 --> L[Wait Group Done]
-    
-    L --> M{Merge PhaseSynchronized}
-    
-    M --> N[Acquire Mutex Lock]
-    N --> O[Merge Local Indices]
-    O --> P[Release Mutex Lock]
-    
-    P --> Q[Global Index Ready]
-    
-    style A fill:#e3f2fd
-    style B fill:#fff3e0
-    style J1 fill:#e8f5e9
-    style J2 fill:#e8f5e9
-    style J3 fill:#e8f5e9
-    style M fill:#ffccbc
-    style Q fill:#c8e6c9
-```
 ## Concurrent Indexing Flow
 
 Concurrent indexing uses a worker pool pattern where N workers (based on CPU cores) process documents in parallel, build local indices without locks, then merge at the end for a 1.9x speedup.
+
+A worker pool is a concurrency pattern where:
+- we create N worker goroutines
+- send them tasks through a channel
+- each worker picks up tasks and processes them
+- wait until all workers finish
+Instead of doing work one by one, we divide it across multiple workers running in parallel.
+
+In my code this "task" is the documents to index.
 
 ```go
 // Create worker pool
@@ -363,7 +387,106 @@ for _, doc := range documents {
 }
 ```
 
+### Concurrency Model
+
+I have used two types of concurrency:
+
+#### 1. Worker Pool fo parallel indexing
+
+Indexing uses a **worker pool pattern** to process documents concurrently.
+
+```go
+for i := 0; i < numWorkers; i++ {
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        for doc := range docsChan {
+            e.index.AddDocument(doc)
+        }
+    }()
+}
+```
+It works in this way:
+Starts numWorkers goroutines
+Each worker:
+-> Waits for documents from docsChan
+-> Calls AddDocument(doc)
+-> Runs until the channel is closed
+
+Documents are distributed using:
+```go
+for _, doc := range docs {
+    docsChan <- doc
+}
+close(docsChan)
+```
+The main goroutine waits for completion:
+```go
+wg.Wait()
+```
+Why I used worker pool in this project:
+Indexing is CPU-intensive,
+Each document is independent,
+Utilizes multiple CPU cores efficiently,
+Prevents spawning unlimited goroutines.
+
+
+#### 2. Mutex for thread safety
+
+The engine uses sync.RWMutex to prevent race conditions.
+```go
+e.mu.Lock() → Used during indexing (write operation)
+e.mu.RLock() → Used during search (read operation)
+```
+This ensures that
+-> safe concurrent searches
+-> no modification of the index while indexing is running.
+
+
 <img src="./gosearchindexing.png" alt="GoSearch Indexing" width="600"/>
+
+## Search query flow:
+
+The query is processed through the Analyzer (tokenization, normalization, stemming), relevant postings are retrieved from the inverted index, TF-IDF scores are computed for matching documents, results are ranked in descending order, and the top-k documents are returned as a structured JSON response.
+
+
+<img src="./search-query-flow.png" alt="TF-IDF example on 3 documents" />
+
+
+## TF-IDF Ranking Algorithm
+
+GoSearch uses the **TF-IDF (Term Frequency - Inverse Document Frequency)** model for keyword-based relevance ranking.
+
+```go
+type Posting struct {
+    DocID         int
+    TermFrequency int  // Used for TF
+    DocLength     int  // Used for normalization
+}
+```
+
+### Term Frequency (TF)
+Measures how often a term appears in a document.  
+Higher frequency ⇒ higher importance within that document.
+
+### Inverse Document Frequency (IDF)
+Measures how rare a term is across the corpus.  
+Rare terms receive higher weight, while common terms (e.g., stop words) receive lower weight.
+
+Scoring Formula goes as:
+
+score(term, document) = TF × IDF
+
+The key insights were:
+
+- Terms appearing in all documents receive very low (or zero) IDF weight.
+- Rare, discriminative terms contribute more to ranking.
+- Documents containing more query-specific terms rank higher.
+
+In the example below (3 small documents), the word **"good"** appears in all documents and therefore gets minimal ranking weight, while **"boy"** and **"girl"** provide stronger ranking signals.
+
+<img src="./tf-idf.png" alt="TF-IDF example on 3 documents" width="600"/>
+
 
 
 ---
