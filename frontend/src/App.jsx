@@ -69,9 +69,21 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+   <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
 
-      {/* Header */}
+    {/* Deployment Notice */}
+<div className="bg-yellow-100 border-b border-yellow-300 text-yellow-800 text-center py-2 px-12 text-sm md:text-base">
+  Backend of GoSearch is not deployed yet. I’m currently working on it.
+  You can run it locally by following the installation guide{" "}
+  <a
+    href="/documentation"
+    className="font-semibold underline hover:text-yellow-900"
+  >
+    here
+  </a>.
+</div>
+
+
       <header className="  py-16 px-4 shadow-lg">
         <div className="max-w-6xl mx-auto text-center">
      <div className="flex flex-col items-center text-center">
@@ -103,10 +115,10 @@ function App() {
         </div>
       </header>
 
-      {/* Main */}
+
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 -mt-10">
 
-        {/* Search Box */}
+      
         <form
           onSubmit={handleSearch}
           className="bg-white shadow-2xl rounded-2xl p-3 md:p-4 flex flex-col md:flex-row gap-3 border border-slate-200"
