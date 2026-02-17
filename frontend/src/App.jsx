@@ -72,12 +72,22 @@ function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
 
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white py-16 px-4 shadow-lg">
+      <header className="  py-16 px-4 shadow-lg">
         <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">GoSearch</h1>
-          <p className="mt-4 text-lg opacity-90">
-            Fast, relevant, full-text search engine
-          </p>
+     <div className="flex flex-col items-center text-center">
+  <img
+    src="/gosearchlogo1.png"
+    alt="GoSearch Logo"
+    className="w-40 md:w-56 lg:w-64 object-contain"
+  />
+
+  <p className="mt-4 max-w-2xl text-lg opacity-90">
+    GoSearch is a lightweight, concurrent full-text search engine built from
+    scratch in Golang that indexes large documents and returns relevance-ranked
+    results.
+  </p>
+</div>
+
 
           {stats && (
             <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm md:text-base opacity-90">
@@ -99,7 +109,7 @@ function App() {
         {/* Search Box */}
         <form
           onSubmit={handleSearch}
-          className="bg-white shadow-2xl rounded-2xl p-3 md:p-4 flex flex-col md:flex-row gap-3"
+          className="bg-white shadow-2xl rounded-2xl p-3 md:p-4 flex flex-col md:flex-row gap-3 border border-slate-200"
         >
           <input
             type="text"
