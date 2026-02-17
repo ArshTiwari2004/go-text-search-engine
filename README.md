@@ -58,6 +58,22 @@ go build -o gosearch ./cmd/api
 ./gosearch -dump enwiki-latest-abstract1.xml.gz -port 8080
 ```
 
+Setup the backend, run the go server
+
+```bash
+git clone https://github.com/ArshTiwari2004/go-text-search-engine.git
+cd gosearch
+cd cmd/api
+
+# Place dataset here:
+# simplewiki-latest-pages-articles.xml.bz2
+
+go run main.go
+
+API will start at:
+http://localhost:8080 , and you will see a message Starting GoSearch API Server
+```
+
 Setup the frontend, this is optional
 ```bash
 cd frontend
