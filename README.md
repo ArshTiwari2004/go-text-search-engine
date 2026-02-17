@@ -584,6 +584,7 @@ In the example below (3 small documents), the word **"good"** appears in all doc
 
 <img src="./tf-idf.png" alt="TF-IDF example on 3 documents" width="600"/>
 
+[View the deployed project here](https://go-text-search-engine.vercel.app/)
 
 
 ---
