@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+
+const SAMPLE_QUERIES = [
+  'machine learning algorithms',
+  'climate change effects',
+  'quantum computing basics',
+  'black holes formation',
+  'ancient civilizations',
+];
 
 function App() {
   const [query, setQuery] = useState('');
@@ -9,9 +17,18 @@ function App() {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
   const [searchTime, setSearchTime] = useState(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [placeholder, setPlaceholder] = useState(SAMPLE_QUERIES[0]);
+  const inputRef = useRef(null);
+  const placeholderIdx = useRef(0);
 
   useEffect(() => {
     fetchStats();
+    const interval = setInterval(() => {
+      placeholderIdx.current = (placeholderIdx.current + 1) % SAMPLE_QUERIES.length;
+      setPlaceholder(SAMPLE_QUERIES[placeholderIdx.current]);
+    }, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchStats = async () => {
@@ -27,212 +44,226 @@ function App() {
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
-
     setLoading(true);
     setError(null);
+    setHasSearched(true);
 
     try {
       const response = await fetch(`${API_BASE_URL}/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, max_results: 20 }),
+        body: JSON.stringify({ query, max_results: 20 }),
       });
-
       const data = await response.json();
-
       if (data.success) {
         setResults(data.results || []);
         setSearchTime(data.time_taken);
       } else {
         setError(data.message || 'Search failed');
+        setResults([]);
       }
     } catch (err) {
-      setError('Failed to connect to search server');
-      console.error('Search error:', err);
+      setError('Cannot reach the GoSearch backend. Run it locally, see the Setup Guide.');
+      setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const highlightText = (text, query) => {
-    if (!query) return text;
-
-    const terms = query.toLowerCase().split(' ');
-    let highlighted = text;
-
-    terms.forEach(term => {
-      const regex = new RegExp(`(${term})`, 'gi');
-      highlighted = highlighted.replace(regex, '<mark>$1</mark>');
-    });
-
-    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
+  const handleSampleClick = (q) => {
+    setQuery(q);
+    inputRef.current?.focus();
   };
 
+  const highlightText = (text, query) => {
+    if (!query) return text;
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    let html = text;
+    terms.forEach(term => {
+      const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      html = html.replace(regex, '<mark>$1</mark>');
+    });
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  };
+
+  const isHomepage = !hasSearched;
+
   return (
-   <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
+    <div className="gs-root">
+      {/* ── Notice Banner ── */}
+      <div className="gs-banner">
+        <span className="gs-banner-dot" />
+        Backend not yet deployed — run locally via the&nbsp;
+        <a href="/documentation">Setup Guide</a>.
+      </div>
 
-    {/* Deployment Notice */}
-<div className="bg-yellow-100 border-b border-yellow-300 text-yellow-800 text-center py-2 px-12 text-sm md:text-base">
-  Backend of GoSearch is not deployed yet. I’m currently working on it.
-  You can run it locally by following the installation guide{" "}
-  <a
-    href="/documentation"
-    className="font-semibold underline hover:text-yellow-900"
-  >
-    here
-  </a>.
-</div>
+      {/* ── HEADER / HERO ── */}
+      <header className={`gs-header ${isHomepage ? 'gs-header--hero' : 'gs-header--compact'}`}>
+        <div className="gs-header-inner">
+          <a href="/" className="gs-logo-link">
+            <img src="/gosearchlogo1.png" alt="GoSearch" className="gs-logo" />
+          </a>
 
+          {isHomepage && (
+            <p className="gs-tagline">
+              A <em>concurrent full-text search engine</em> built from scratch in Go with <br />
+              TF-IDF ranking, inverted index, millisecond latency.
+            </p>
+          )}
 
-      <header className="  py-16 px-4 shadow-lg">
-        <div className="max-w-6xl mx-auto text-center">
-     <div className="flex flex-col items-center text-center">
-  <img
-    src="/gosearchlogo1.png"
-    alt="GoSearch Logo"
-    className="w-40 md:w-56 lg:w-64 object-contain"
-  />
+          {/* ── Search Bar ── */}
+          <form className="gs-search-form" onSubmit={handleSearch}>
+            <div className="gs-search-wrap">
+              <svg className="gs-search-icon" viewBox="0 0 20 20" fill="none">
+                <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.8" />
+                <path d="M13.5 13.5 L17 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              <input
+                ref={inputRef}
+                type="text"
+                className="gs-search-input"
+                placeholder={`Try "${placeholder}"`}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+              />
+              {query && (
+                <button type="button" className="gs-search-clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }}>
+                  ×
+                </button>
+              )}
+            </div>
+            <button type="submit" className={`gs-search-btn ${loading ? 'gs-search-btn--loading' : ''}`} disabled={loading}>
+              {loading
+                ? <span className="gs-spinner" />
+                : <span>Search</span>}
+            </button>
+          </form>
 
-  <p className="mt-4 max-w-2xl text-lg opacity-90">
-    GoSearch is a lightweight, concurrent full-text search engine built from
-    scratch in Golang that indexes large documents and returns relevance-ranked
-    results.
-  </p>
-</div>
-
-
-          {stats && (
-            <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm md:text-base opacity-90">
-              <span>{stats.total_documents?.toLocaleString()} documents</span>
-              <span>•</span>
-              <span>{stats.total_terms?.toLocaleString()} terms</span>
-              <span>•</span>
-              <span>{stats.total_queries?.toLocaleString()} queries</span>
-              <span>•</span>
-              <span>~{stats.average_query_time}</span>
+          {/* Sample queries */}
+          {isHomepage && (
+            <div className="gs-samples">
+              <span className="gs-samples-label">Try:</span>
+              {SAMPLE_QUERIES.map(q => (
+                <button key={q} className="gs-pill" onClick={() => handleSampleClick(q)}>{q}</button>
+              ))}
             </div>
           )}
         </div>
       </header>
 
+      {/* ── MAIN CONTENT ── */}
+      <main className="gs-main">
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 -mt-10">
-
-      
-        <form
-          onSubmit={handleSearch}
-          className="bg-white shadow-2xl rounded-2xl p-3 md:p-4 flex flex-col md:flex-row gap-3 border border-slate-200"
-        >
-          <input
-            type="text"
-            placeholder="Search for anything... (e.g., 'machine learning', 'climate change')"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 px-5 py-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-base"
-            autoFocus
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className={`px-8 py-4 rounded-xl font-semibold text-white transition-all duration-300 
-              ${loading 
-                ? 'bg-indigo-400 animate-pulse cursor-not-allowed' 
-                : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer'
-              }`}
-          >
-            {loading ? 'Searching...' : 'Search'}
-          </button>
-        </form>
-
-        {/* Error */}
-        {error && (
-          <div className="mt-6 bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl text-center">
-            ⚠️ {error}
+        {/* Stats row */}
+        {stats && isHomepage && (
+          <div className="gs-stats-row">
+            <StatCard icon="📄" value={stats.total_documents?.toLocaleString()} label="documents" />
+            <StatCard icon="🔤" value={stats.total_terms?.toLocaleString()} label="unique terms" />
+            <StatCard icon="🔍" value={stats.total_queries?.toLocaleString()} label="queries served" />
+            <StatCard icon="⚡" value={`~${stats.average_query_time}`} label="avg latency" />
           </div>
         )}
 
-        {/* Results Info */}
-        {searchTime && results.length > 0 && (
-          <div className="mt-6 text-slate-600">
-            Found <strong>{results.length}</strong> results in{' '}
-            <strong>{searchTime}</strong>
+        {/* Error */}
+        {error && (
+          <div className="gs-error">
+            <svg viewBox="0 0 20 20" className="gs-error-icon"><circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" fill="none" /><path d="M10 6v4M10 13h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            {error}
+          </div>
+        )}
+
+        {/* Results meta */}
+        {!loading && !error && results.length > 0 && (
+          <div className="gs-meta">
+            <strong>{results.length}</strong> results for <em>"{query}"</em>
+            {searchTime && <> &mdash; <strong>{searchTime}</strong></>}
           </div>
         )}
 
         {/* Results */}
-        <div className="mt-8 space-y-6 pb-16">
-          {results.map((result) => (
-            <div
-              key={result.document.id}
-              className="bg-white border border-slate-200 rounded-1xl p-6 "
-            >
-              <div className="flex flex-col md:flex-row md:items-start gap-4">
-
-                <div className="text-indigo-600 font-bold text-lg md:text-xl min-w-[50px]">
-                  #{result.rank}
-                </div>
-
-                <div className="flex-1">
-                  <h3 className="text-xl md:text-2xl font-semibold mb-2">
-                    {highlightText(result.document.title, query)}
-                  </h3>
-
-                  <p className="text-slate-600 leading-relaxed mb-4">
-                    {highlightText(
-                      result.snippets && result.snippets[0]
-                        ? result.snippets[0]
-                        : result.document.text.substring(0, 200) + '...',
-                      query
-                    )}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-                    <span className="bg-slate-100 px-3 py-1 rounded-full font-medium">
-                      Score: {result.score.toFixed(3)}
-                    </span>
-
-                    {result.document.url && (
-                      <a
-                        href={result.document.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 font-medium hover:underline"
-                      >
-                        View Source →
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            </div>
+        <div className="gs-results">
+          {results.map((result, i) => (
+            <ResultCard key={result.document.id} result={result} query={query} highlightText={highlightText} animDelay={i * 40} />
           ))}
         </div>
 
-        {/* No Results */}
-        {!loading && !error && results.length === 0 && query && (
-          <div className="text-center mt-16 text-slate-500">
-            <p className="text-lg">
-              No results found for "<strong>{query}</strong>"
-            </p>
-            <p className="mt-2">Try different keywords or check your spelling</p>
+        {/* No results */}
+        {hasSearched && !loading && !error && results.length === 0 && (
+          <div className="gs-empty">
+            <div className="gs-empty-icon">🔎</div>
+            <p>No results for <strong>"{query}"</strong></p>
+            <p className="gs-empty-hint">Try different keywords or broader terms</p>
+          </div>
+        )}
+
+        {/* Homepage feature cards */}
+        {isHomepage && (
+          <div className="gs-features">
+            {FEATURES.map(f => (
+              <div className="gs-feature-card" key={f.title}>
+                <div className="gs-feature-icon">{f.icon}</div>
+                <h3>{f.title}</h3>
+                <p>{f.desc}</p>
+              </div>
+            ))}
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-8 text-center text-slate-500">
-        <a
-          href="https://github.com/ArshTiwari2004/go-text-search-engine"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-indigo-600 font-medium hover:underline"
-        >
-          View on GitHub
-        </a>
+      {/* ── FOOTER ── */}
+      <footer className="gs-footer">
+        <span>GoSearch is built with Go &amp; React by Arsh Tiwari</span>
+        <span className="gs-footer-sep">·</span>
+        <a href="/documentation">Docs</a>
+        <span className="gs-footer-sep">·</span>
+        <a href="https://github.com/ArshTiwari2004/go-text-search-engine" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
       </footer>
     </div>
   );
 }
+
+function StatCard({ icon, value, label }) {
+  return (
+    <div className="gs-stat-card">
+      <span className="gs-stat-icon">{icon}</span>
+      <span className="gs-stat-value">{value}</span>
+      <span className="gs-stat-label">{label}</span>
+    </div>
+  );
+}
+
+function ResultCard({ result, query, highlightText, animDelay }) {
+  const snippet = result.snippets?.[0] || result.document.text?.substring(0, 220) + '...';
+  return (
+    <div className="gs-result-card" style={{ animationDelay: `${animDelay}ms` }}>
+      <div className="gs-result-rank">#{result.rank}</div>
+      <div className="gs-result-body">
+        <h3 className="gs-result-title">{highlightText(result.document.title, query)}</h3>
+        <p className="gs-result-snippet">{highlightText(snippet, query)}</p>
+        <div className="gs-result-meta">
+          <span className="gs-score-badge">Score {result.score.toFixed(4)}</span>
+          {result.document.url && (
+            <a className="gs-result-link" href={result.document.url} target="_blank" rel="noopener noreferrer">
+              View source ↗
+            </a>
+          )}
+          {result.document.word_count > 0 && (
+            <span className="gs-word-count">{result.document.word_count.toLocaleString()} words</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const FEATURES = [
+  { icon: '⚡', title: 'Sub-millisecond Queries', desc: 'Inverted index enables O(k) lookup with k being documents with the term, not total corpus size.' },
+  { icon: '📊', title: 'TF-IDF Ranking', desc: 'Term Frequency × Inverse Document Frequency scoring surfaces the most relevant documents first.' },
+  { icon: '🔄', title: 'Concurrent Indexing', desc: 'Worker-pool goroutines parallelize document ingestion, saturating all CPU cores during bulk index builds.' },
+  { icon: '💾', title: 'Persistent Storage', desc: 'Gob-encoded index snapshots survive restarts, so no re-indexing on boot, under 1 s startup time.' },
+  { icon: '🔍', title: 'Text Analysis Pipeline', desc: 'Tokenize → lowercase → stopword removal → Snowball stemming for higher recall without noise.' },
+  { icon: '🌐', title: 'REST API', desc: 'Gin-powered HTTP server with CORS, health checks, stats endpoint and autocomplete stubs.' },
+];
 
 export default App;
