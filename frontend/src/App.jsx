@@ -211,14 +211,67 @@ function App() {
         )}
       </main>
 
-      {/* ── FOOTER ── */}
-      <footer className="gs-footer">
-        <span>GoSearch is built with Go &amp; React by Arsh Tiwari</span>
-        <span className="gs-footer-sep">·</span>
-        <a href="/documentation">Docs</a>
-        <span className="gs-footer-sep">·</span>
-        <a href="https://github.com/ArshTiwari2004/go-text-search-engine" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
-      </footer>
+      {/*footer  */}
+    <footer className="gs-footer">
+ <span>
+  For any suggestions, reach out to me at{" "}
+  <a href="mailto:arshtiwari12345@gmail.com">
+    arshtiwari12345@gmail.com
+  </a>. I’ll reply within 1 day.
+</span>
+
+  <span className="gs-footer-sep">·</span>
+  <a href="/documentation">Docs</a>
+
+  <span className="gs-footer-sep">·</span>
+  <a
+    href="https://github.com/ArshTiwari2004/go-text-search-engine"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    GitHub ↗
+  </a>
+
+  <span className="gs-footer-sep">·</span>
+
+  <a
+    href="https://www.linkedin.com/in/arsh-tiwari-072609284/"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    LinkedIn ↗
+  </a>
+
+  <span className="gs-footer-sep">·</span>
+
+  <a
+    href="https://x.com/ArshTiwari17"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    X ↗
+  </a>
+
+  <span className="gs-footer-sep">·</span>
+
+  <a
+    href="https://arsh-portfolio-delta.vercel.app/"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    Portfolio ↗
+  </a>
+
+  <span className="gs-footer-sep">·</span>
+
+  <a
+    href="https://www.youtube.com/@TeamSynapse3"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    YouTube ↗
+  </a>
+</footer>
     </div>
   );
 }
