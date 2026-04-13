@@ -63,7 +63,7 @@ export default function Documentation() {
           <span className="doc-label">Overview</span>
           <h1 className="doc-h1">GoSearch</h1>
           <p className="doc-lead">
-            A lightweight, concurrent full-text search engine built from scratch in Go. It indexes documents using an inverted index and ranks results with TF-IDF, returning relevant results in milliseconds, a cost-free alternative to Elasticsearch for datasets under ~10 M documents.
+            A lightweight, concurrent full-text search engine built from scratch in Go. It indexes documents using an inverted index and ranks results with TF-IDF, returning relevant results in milliseconds, with optional Redis caching and PostgreSQL-backed analytics for a more production-ready setup.
           </p>
           <div className="doc-badge-row">
             <span className="doc-badge doc-badge--go">Go 1.21+</span>
@@ -82,6 +82,7 @@ export default function Documentation() {
           <ul className="doc-list">
             <li>Go 1.21+</li>
             <li>Git</li>
+            <li>Docker Desktop (recommended for Redis + PostgreSQL)</li>
             <li>4 GB RAM (for large Wikipedia dump indexing)</li>
           </ul>
 
@@ -94,23 +95,54 @@ go mod download
 wget https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-pages-articles.xml.bz2
 mv simplewiki-latest-pages-articles.xml.bz2 cmd/api/
 
-# Start the API server (auto-indexes on first run)
+# Start backend only (search engine + API, no Redis / DB)
 cd cmd/api
 go run main.go
-# ✓ Server starts at http://localhost:8080`} />
+
+# Backend runs at:
+# http://localhost:8080`} />
+
+          <h3 className="doc-h3">Backend with Redis + PostgreSQL</h3>
+          <CodeBlock lang="bash" code={`# From project root, start infrastructure first
+docker compose up -d redis postgres
+
+# Then start the backend locally
+cd cmd/api
+go run main.go \\
+  -redis localhost:6379 \\
+  -dbdsn "postgres://gosearch:gosearch@localhost:5432/gosearch?sslmode=disable"`} />
 
           <h3 className="doc-h3">Frontend</h3>
           <CodeBlock lang="bash" code={`cd frontend
 npm install
 npm run dev
-# ✓ UI available at http://localhost:5173`} />
+
+# UI available at:
+# http://localhost:5173`} />
+
+          <h3 className="doc-h3">Useful Local API Checks</h3>
+          <CodeBlock lang="bash" code={`# Health check
+curl http://localhost:8080/health
+
+# Search
+curl -X POST http://localhost:8080/api/v1/search \\
+  -H "Content-Type: application/json" \\
+  -d '{"query":"machine learning","max_results":10}'
+
+# Stats
+curl http://localhost:8080/api/v1/stats`} />
 
           <h3 className="doc-h3">Subsequent Runs</h3>
-          <CodeBlock lang="bash" code={`# Index is persisted — loads in < 1 s on restart
-./gosearch
+          <CodeBlock lang="bash" code={`# From cmd/api
+go run main.go
 
 # Force full rebuild
-./gosearch -rebuild`} />
+go run main.go -rebuild
+
+# With Redis + PostgreSQL again
+go run main.go \\
+  -redis localhost:6379 \\
+  -dbdsn "postgres://gosearch:gosearch@localhost:5432/gosearch?sslmode=disable"`} />
         </section>
 
         {/* ── Architecture ── */}
@@ -120,7 +152,7 @@ npm run dev
 
           <h3 className="doc-h3">Request Flow</h3>
           <div className="doc-flow">
-            {['HTTP Request', 'Gin Router', 'Query Analyzer', 'Inverted Index Lookup', 'TF-IDF Scorer', 'Sort & Trim', 'JSON Response'].map((s, i, arr) => (
+            {['HTTP Request', 'Gin Router', 'Cache Check', 'Query Analyzer', 'Inverted Index Lookup', 'TF-IDF Scorer', 'Sort & Trim', 'JSON Response'].map((s, i, arr) => (
               <React.Fragment key={s}>
                 <span className="doc-flow-step">{s}</span>
                 {i < arr.length - 1 && <span className="doc-flow-arrow">→</span>}
@@ -133,8 +165,8 @@ npm run dev
             {[
               { step: '1', name: 'Tokenize', detail: 'Split on non-letter/non-number runes' },
               { step: '2', name: 'Lowercase', detail: 'Normalize case for case-insensitive search' },
-              { step: '3', name: 'Stopwords', detail: 'Remove ~25 high-frequency English words' },
-              { step: '4', name: 'Stem', detail: 'Snowball/Porter2 → "running" → "run"' },
+              { step: '3', name: 'Stopwords', detail: 'Remove high-frequency English words' },
+              { step: '4', name: 'Stem', detail: 'Reduce related word forms to a common root' },
             ].map(p => (
               <div className="doc-pipeline-step" key={p.step}>
                 <span className="doc-pipeline-num">{p.step}</span>
@@ -147,13 +179,13 @@ npm run dev
           </div>
 
           <h3 className="doc-h3">Concurrency Model</h3>
-          <p>Indexing uses a <strong>worker-pool</strong> pattern — <code>runtime.NumCPU()</code> goroutines drain a buffered channel of documents. The inverted index is protected by a <code>sync.RWMutex</code>: multiple readers can query simultaneously; writers (indexers) take an exclusive lock. Engine-level stats use their own mutex to avoid contention with searches.</p>
+          <p>Indexing uses a <strong>worker-pool</strong> pattern — <code>runtime.NumCPU()</code> goroutines drain a buffered channel of documents. The inverted index is protected by a <code>sync.RWMutex</code>: multiple readers can query simultaneously, while writers take an exclusive lock. Optional Redis caching reduces repeated TF-IDF work for hot queries, and PostgreSQL logs query analytics without blocking request handling.</p>
 
           <h3 className="doc-h3">TF-IDF Formula</h3>
           <CodeBlock lang="text" code={`score(term, doc) = TF(term,doc) × IDF(term)
 
-TF  = termFrequency / totalDocTerms     (normalized term frequency)
-IDF = log( totalDocs / docsContainingTerm )   (rarity weight)
+TF  = termFrequency / totalDocTerms
+IDF = log(totalDocs / docsContainingTerm)
 
 Final score = Σ TF-IDF for all query terms in doc`} />
         </section>
@@ -169,7 +201,7 @@ Final score = Σ TF-IDF for all query terms in doc`} />
               <span className="doc-method doc-method--post">POST</span>
               <span className="doc-path">/search</span>
             </div>
-            <p>Execute a full-text search with TF-IDF ranking.</p>
+            <p>Execute a full-text search with TF-IDF ranking. In the Redis-enabled setup, repeated queries can be served directly from cache.</p>
             <CodeBlock lang="json" code={`// Request
 {
   "query": "golang concurrency",
@@ -190,7 +222,8 @@ Final score = Σ TF-IDF for all query terms in doc`} />
   ],
   "total_results": 10,
   "time_taken": "1.77ms",
-  "success": true
+  "success": true,
+  "cache_hit": false
 }`} />
           </div>
 
@@ -214,8 +247,18 @@ Final score = Σ TF-IDF for all query terms in doc`} />
   "average_query_time": "1.8ms",
   "memory_usage_mb": 84.2,
   "index_size_kb": 5236.6,
-  "uptime": "3h2m"
+  "uptime": "3h2m",
+  "cache_available": true,
+  "db_available": true
 }`} />
+          </div>
+
+          <div className="doc-endpoint">
+            <div className="doc-endpoint-head">
+              <span className="doc-method doc-method--get">GET</span>
+              <span className="doc-path">/analytics</span>
+            </div>
+            <p>Returns query-level analytics when PostgreSQL is enabled.</p>
           </div>
 
           <div className="doc-endpoint">
@@ -249,49 +292,148 @@ results.forEach(r => console.log(r.rank, r.document.title, r.score));`} />
           <span className="doc-label">Deployment</span>
           <h2 className="doc-h2">Docker & Docker Compose</h2>
 
-          <h3 className="doc-h3">Dockerfile (backend)</h3>
-          <CodeBlock lang="dockerfile" code={`FROM golang:1.21-alpine AS builder
+          <h3 className="doc-h3">Backend Dockerfile</h3>
+          <CodeBlock lang="dockerfile" code={`# ── Stage 1: Build ────────────────────────────────────────────────────────
+FROM golang:1.21-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates
+
 WORKDIR /app
+
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gosearch ./cmd/api
 
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build \\
+    -ldflags="-s -w" \\
+    -o gosearch \\
+    ./cmd/api
+
+# ── Stage 2: Runtime ──────────────────────────────────────────────────────
 FROM alpine:3.19
-RUN apk --no-cache add ca-certificates
+
+RUN apk --no-cache add ca-certificates wget
+
 WORKDIR /app
+
 COPY --from=builder /app/gosearch .
+
+RUN mkdir -p /app/data
+
 EXPOSE 8080
+
 CMD ["./gosearch"]`} />
 
           <h3 className="doc-h3">docker-compose.yml</h3>
           <CodeBlock lang="yaml" code={`version: "3.9"
+
 services:
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    volumes:
-      - ./data:/app/data          # persist index across restarts
-      - ./simplewiki.xml.bz2:/app/simplewiki.xml.bz2
     environment:
       - DATA_DIR=/app/data
+      - GIN_MODE=release
+    command: >
+      ./gosearch
+        -port 8080
+        -data /app/data
+        -redis redis:6379
+        -dbdsn postgres://gosearch:gosearch@postgres:5432/gosearch?sslmode=disable
+        -limit 1000
+    volumes:
+      - index_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api/v1
     depends_on:
       - backend
-    environment:
-      - VITE_API_URL=http://backend:8080/api/v1`} />
+    restart: unless-stopped
 
-          <CodeBlock lang="bash" code={`# Spin everything up
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: gosearch
+      POSTGRES_PASSWORD: gosearch
+      POSTGRES_DB: gosearch
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gosearch -d gosearch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  index_data:
+    driver: local
+  redis_data:
+    driver: local
+  pg_data:
+    driver: local`} />
+
+          <h3 className="doc-h3">Useful Docker Commands</h3>
+          <CodeBlock lang="bash" code={`# Build and start everything
 docker compose up --build
 
-# Backend only
-docker compose up backend`} />
+# Run in background
+docker compose up --build -d
+
+# Start only infra
+docker compose up -d redis postgres
+
+# Start backend only
+docker compose up backend
+
+# Backend + Redis + PostgreSQL
+docker compose up backend redis postgres
+
+# View logs
+docker compose logs -f backend
+
+# Stop everything
+docker compose down
+
+# Stop and remove volumes
+docker compose down -v`} />
         </section>
 
         {/* ── Features ── */}
@@ -303,11 +445,11 @@ docker compose up backend`} />
               ['⚡','Inverted Index','O(k) lookups where k = matching documents, not total corpus'],
               ['📊','TF-IDF Ranking','Normalized term frequency × log-IDF scoring'],
               ['🔄','Concurrent Indexing','Worker-pool goroutines, one per CPU core'],
-              ['💾','Persistent Index','Gob-encoded snapshots, sub-second cold start'],
-              ['🔍','NLP Pipeline','Tokenize → lowercase → stopwords → Porter2 stemming'],
-              ['🌐','REST API','Gin router, CORS, health checks, stats endpoint'],
-              ['🐋','Docker Ready','Multi-stage Dockerfile + docker-compose provided'],
-              ['📈','Metrics','Query count, avg latency, memory & index size'],
+              ['💾','Persistent Index','Saved index data enables faster restarts'],
+              ['🔍','NLP Pipeline','Tokenize → lowercase → stopwords → stemming'],
+              ['🌐','REST API','Gin router, CORS, health checks, stats, analytics'],
+              ['🐋','Docker Ready','Multi-stage Dockerfile + Docker Compose setup'],
+              ['📈','Metrics','Query count, latency, cache hit data, memory & index size'],
             ].map(([icon, title, desc]) => (
               <div className="doc-feat" key={title}>
                 <span className="doc-feat-icon">{icon}</span>
@@ -324,7 +466,7 @@ docker compose up backend`} />
         <section id="perf" className="doc-section">
           <span className="doc-label">Benchmarks</span>
           <h2 className="doc-h2">Performance</h2>
-          <p>Tested with <code>simplewiki-latest-pages-articles.xml.bz2</code> on Apple M1, 8 GB RAM:</p>
+          <p>Tested with <code>simplewiki-latest-pages-articles.xml.bz2</code> on Apple Silicon with 8 GB RAM:</p>
           <table className="doc-table">
             <thead>
               <tr><th>Metric</th><th>Value</th></tr>
@@ -332,10 +474,10 @@ docker compose up backend`} />
             <tbody>
               <tr><td>Documents indexed</td><td>1,000 (limit set)</td></tr>
               <tr><td>Unique terms</td><td>52,366</td></tr>
-              <tr><td>Query: "go programming"</td><td><strong>~1.8 ms</strong></td></tr>
-              <tr><td>Index build time (1k docs)</td><td>~300 ms</td></tr>
-              <tr><td>Index load time (from disk)</td><td>&lt; 100 ms</td></tr>
-              <tr><td>Memory (1k docs)</td><td>~84 MB RSS</td></tr>
+              <tr><td>Query latency</td><td><strong>~1–4 ms</strong></td></tr>
+              <tr><td>Index build time (1k docs)</td><td>~2 s including document load</td></tr>
+              <tr><td>Index load time (persisted path)</td><td>sub-second target</td></tr>
+              <tr><td>Memory (1k docs)</td><td>tens of MB locally</td></tr>
             </tbody>
           </table>
         </section>
