@@ -74,6 +74,15 @@ API will start at:
 http://localhost:8080 , and you will see a message Starting GoSearch API Server
 ```
 
+but if you want full system, redis and postgres included, then run this to setup the backend:
+```bash
+go run main.go \
+  -redis localhost:6379 \
+  -dbdsn "postgres://gosearch:gosearch@localhost:5432/gosearch?sslmode=disable"
+``` 
+
+
+
 Setup the frontend, this is optional
 ```bash
 cd frontend
