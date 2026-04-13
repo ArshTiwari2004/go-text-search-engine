@@ -1,0 +1,116 @@
+version: "3.9"
+
+# GoSearch — Release 2 Docker Compose
+#
+# Services:
+#   backend   — Go search engine API (port 8080)
+#   frontend  — React UI served by Nginx (port 3000)
+#   redis     — Query cache  (port 6379)
+#   postgres  — Document store + query log (port 5432)
+#
+# Start everything:
+#   docker compose up --build
+#
+# Backend only (no cache/DB):
+#   docker compose up backend
+#
+# With infra:
+#   docker compose up backend redis postgres
+
+services:
+
+  # ── Go Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATA_DIR=/app/data
+      - GIN_MODE=release
+    command: >
+      ./gosearch
+        -port 8080
+        -data /app/data
+        -redis redis:6379
+        -dbdsn postgres://gosearch:gosearch@postgres:5432/gosearch?sslmode=disable
+        -limit 1000
+    volumes:
+      - index_data:/app/data
+      # Mount your dump file here:
+      # - ./simplewiki-latest-pages-articles.xml.bz2:/app/simplewiki-latest-pages-articles.xml.bz2
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── React Frontend 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api/v1
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Redis 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    #
+    # maxmemory-policy allkeys-lru:
+    #   When Redis hits 256 MB, it evicts the LEAST RECENTLY USED keys.
+    #   Perfect for a query cache, hot queries stay in memory, cold ones
+    #   get evicted automatically. No manual TTL management needed.
+    #
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER:     gosearch
+      POSTGRES_PASSWORD: gosearch
+      POSTGRES_DB:       gosearch
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # Optional: mount init SQL for seeding
+      # - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gosearch -d gosearch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ── Named Volumes
+volumes:
+  index_data:
+    driver: local
+  redis_data:
+    driver: local
+  pg_data:
+    driver: local
